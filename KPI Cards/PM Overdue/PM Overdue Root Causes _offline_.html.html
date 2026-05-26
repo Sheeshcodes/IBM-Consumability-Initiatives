@@ -1,0 +1,1364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Diagnosing PM overdue metrics in Maximo — Asset Reliability Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Serif:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    /* Carbon-inspired tokens (open-source design language) */
+    --bg:#ffffff;
+    --bg-subtle:#f4f4f4;
+    --bg-hover:#e8e8e8;
+    --bg-info:#edf5ff;
+    --bg-warning:#fff8e1;
+    --bg-error:#fff1f1;
+    --bg-success:#defbe6;
+    --bg-purple:#f6f2ff;
+    --line:#e0e0e0;
+    --line-strong:#c6c6c6;
+    --text:#161616;
+    --text-secondary:#525252;
+    --text-helper:#6f6f6f;
+    --text-placeholder:#a8a8a8;
+    --link:#0f62fe;
+    --link-hover:#0043ce;
+    --accent:#0f62fe;
+    --warning:#f1c21b;
+    --warning-strong:#b28600;
+    --error:#da1e28;
+    --success:#198038;
+    --purple:#8a3ffc;
+    --shadow-1:0 1px 0 rgba(0,0,0,.04);
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'IBM Plex Sans', system-ui, sans-serif;
+    color:var(--text);
+    background:var(--bg);
+    -webkit-font-smoothing:antialiased;
+    font-feature-settings:"liga","kern";
+    line-height:1.5;
+  }
+  a{color:var(--link);text-decoration:none;}
+  a:hover{color:var(--link-hover);text-decoration:underline;}
+
+  /* ---------- Top utility + main bar ---------- */
+  .utility-bar{
+    height:24px;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    padding:0 16px;
+    font-size:12px;
+    color:var(--text-secondary);
+    gap:24px;
+  }
+  .utility-bar a{color:var(--text-secondary);}
+  .top-bar{
+    height:48px;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    align-items:stretch;
+  }
+  .brand{
+    display:flex;align-items:center;gap:10px;
+    padding:0 16px 0 16px;
+    font-weight:600;font-size:14px;
+    letter-spacing:.01em;
+    border-right:1px solid var(--line);
+    min-width:240px;
+  }
+  .brand .mark{
+    width:22px;height:22px;border-radius:2px;
+    background:#161616;color:#fff;
+    display:grid;place-items:center;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;font-weight:600;
+    letter-spacing:0;
+  }
+  .brand .sep{color:var(--text-helper);font-weight:400;}
+  .brand .product{color:var(--text);font-weight:600;}
+  .top-nav{
+    display:flex;align-items:stretch;flex:1;
+    overflow-x:auto;
+    scrollbar-width:none;
+  }
+  .top-nav::-webkit-scrollbar{display:none;}
+  .top-nav a{
+    display:flex;align-items:center;
+    padding:0 16px;
+    font-size:14px;
+    color:var(--text);
+    border-bottom:3px solid transparent;
+    margin-top:3px;
+    white-space:nowrap;
+    transition:background .12s;
+  }
+  .top-nav a:hover{background:var(--bg-subtle);text-decoration:none;}
+  .top-nav a.active{
+    font-weight:600;
+    border-bottom-color:var(--accent);
+  }
+  .top-nav .caret{
+    width:14px;height:14px;margin-left:6px;
+    color:var(--text-secondary);
+  }
+  .top-actions{display:flex;align-items:stretch;}
+  .icon-btn{
+    width:48px;display:grid;place-items:center;
+    border-left:1px solid var(--line);
+    cursor:pointer;color:var(--text);
+    background:transparent;border-top:none;border-right:none;border-bottom:none;
+  }
+  .icon-btn:hover{background:var(--bg-subtle);}
+  .cta-btn{
+    display:flex;align-items:center;
+    padding:0 56px 0 16px;
+    background:var(--accent);
+    color:#fff;
+    font-size:14px;
+    font-weight:400;
+    min-width:180px;
+    position:relative;
+    cursor:pointer;
+    border:none;
+    font-family:inherit;
+  }
+  .cta-btn:hover{background:var(--link-hover);text-decoration:none;color:#fff;}
+  .cta-btn svg{position:absolute;right:16px;top:50%;transform:translateY(-50%);}
+
+  /* ---------- Page layout ---------- */
+  .page{
+    display:grid;
+    grid-template-columns:280px minmax(0,1fr) 340px;
+    gap:0;
+    max-width:1584px;
+    margin:0 auto;
+    padding:0;
+    align-items:flex-start;
+  }
+  @media (max-width:1200px){
+    .page{grid-template-columns:240px minmax(0,1fr) 300px;}
+  }
+  @media (max-width:960px){
+    .page{grid-template-columns:1fr;}
+    .left-nav,.right-rail{display:none;}
+  }
+
+  /* ---------- Left nav ---------- */
+  .left-nav{
+    position:sticky;top:0;
+    padding:64px 24px 64px 32px;
+    align-self:start;
+    max-height:100vh;overflow-y:auto;
+  }
+  .left-nav h4{
+    font-size:12px;
+    font-weight:600;
+    letter-spacing:.02em;
+    text-transform:uppercase;
+    color:var(--text-helper);
+    margin:0 0 16px;
+  }
+  .left-nav ul{list-style:none;padding:0;margin:0;}
+  .left-nav li{position:relative;}
+  .left-nav a{
+    display:block;
+    padding:10px 12px 10px 16px;
+    color:var(--text);
+    font-size:14px;
+    line-height:1.35;
+    border-left:2px solid transparent;
+    transition:background .12s, border-color .12s;
+  }
+  .left-nav a:hover{background:var(--bg-subtle);text-decoration:none;}
+  .left-nav a.active{
+    border-left-color:var(--accent);
+    font-weight:600;
+  }
+  .left-nav .step-num{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--text-helper);
+    margin-right:8px;
+  }
+  .left-nav .jump{
+    margin-top:24px;
+    display:inline-flex;align-items:center;gap:8px;
+    color:var(--accent);font-size:13px;
+    padding-left:16px;
+  }
+
+  /* ---------- Main column ---------- */
+  main{
+    padding:48px 64px 96px;
+    min-width:0;
+  }
+  @media (max-width:1200px){
+    main{padding:48px 32px 96px;}
+  }
+  .breadcrumbs{
+    font-size:12px;color:var(--text-secondary);
+    margin-bottom:32px;
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  }
+  .breadcrumbs a{color:var(--text-secondary);}
+  .breadcrumbs .sep{color:var(--text-placeholder);}
+  .eyebrow{
+    font-size:14px;
+    color:var(--text-secondary);
+    margin-bottom:8px;
+    font-weight:400;
+  }
+  h1.page-title{
+    font-family:'IBM Plex Sans',sans-serif;
+    font-weight:300;
+    font-size:54px;
+    line-height:1.1;
+    letter-spacing:-.01em;
+    margin:0 0 32px;
+    max-width:920px;
+  }
+  .lede{
+    font-size:18px;
+    line-height:1.5;
+    color:var(--text);
+    max-width:780px;
+    margin:0 0 16px;
+    font-weight:400;
+  }
+  .meta-row{
+    display:flex;align-items:center;gap:24px;flex-wrap:wrap;
+    padding:16px 0;
+    border-top:1px solid var(--line);
+    border-bottom:1px solid var(--line);
+    margin:32px 0 56px;
+    font-size:13px;color:var(--text-secondary);
+  }
+  .meta-row .pill{
+    display:inline-flex;align-items:center;gap:6px;
+    padding:2px 8px;border-radius:999px;
+    background:var(--bg-subtle);
+    font-size:12px;color:var(--text);
+  }
+  .meta-row .dot{width:6px;height:6px;border-radius:50%;background:var(--success);}
+
+  /* Severity callout */
+  .severity{
+    display:flex;gap:16px;
+    padding:20px 24px;
+    background:var(--bg-info);
+    border-left:3px solid var(--accent);
+    margin:0 0 56px;
+    max-width:920px;
+  }
+  .severity .icon{
+    flex:0 0 24px;color:var(--accent);
+    margin-top:2px;
+  }
+  .severity h3{
+    margin:0 0 4px;font-size:16px;font-weight:600;
+  }
+  .severity p{margin:0;font-size:14px;color:var(--text-secondary);}
+
+  /* Section heading */
+  section.chapter{
+    padding-top:32px;
+    margin-bottom:48px;
+    scroll-margin-top:32px;
+  }
+  section.chapter + section.chapter{border-top:1px solid var(--line);}
+  .chapter-num{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    color:var(--text-helper);
+    letter-spacing:.04em;
+    margin-bottom:8px;
+  }
+  h2.chapter-title{
+    font-family:'IBM Plex Sans';
+    font-weight:300;
+    font-size:36px;
+    line-height:1.15;
+    letter-spacing:-.005em;
+    margin:0 0 16px;
+    max-width:760px;
+  }
+  .chapter-summary{
+    color:var(--text-secondary);
+    font-size:15px;
+    line-height:1.55;
+    max-width:780px;
+    margin-bottom:32px;
+  }
+
+  /* Root cause card */
+  .rc-card{
+    border-bottom:1px solid var(--line);
+    padding:0;
+    max-width:920px;
+  }
+  .rc-card:last-child{border-bottom:none;}
+  .rc-header{
+    display:grid;
+    grid-template-columns:48px 1fr auto;
+    gap:16px;
+    align-items:flex-start;
+    padding:20px 0;
+    cursor:pointer;
+    background:transparent;
+    border:none;
+    width:100%;
+    text-align:left;
+    font:inherit;
+    color:inherit;
+  }
+  .rc-header:hover{background:var(--bg-subtle);}
+  .rc-header:hover .rc-title{color:var(--accent);}
+  .rc-glyph{
+    width:48px;height:48px;
+    display:grid;place-items:center;
+    color:var(--text);
+  }
+  .rc-text{min-width:0;}
+  .rc-title{
+    font-size:18px;font-weight:600;
+    margin:0 0 4px;
+    transition:color .12s;
+  }
+  .rc-blurb{
+    font-size:14px;color:var(--text-secondary);
+    margin:0;line-height:1.5;
+  }
+  .rc-toggle{
+    width:32px;height:32px;
+    display:grid;place-items:center;
+    color:var(--text);
+    transition:transform .2s;
+    margin-top:8px;
+  }
+  .rc-card.open .rc-toggle{transform:rotate(180deg);}
+  .rc-body{
+    display:none;
+    padding:0 0 24px 64px;
+  }
+  .rc-card.open .rc-body{display:block;}
+  .rc-body h4{
+    font-size:14px;font-weight:600;
+    margin:8px 0 8px;
+    color:var(--text);
+  }
+  .rc-body ul{
+    margin:0 0 20px;padding:0;
+    list-style:none;
+  }
+  .rc-body li{
+    position:relative;
+    padding:6px 0 6px 20px;
+    font-size:14px;
+    color:var(--text-secondary);
+    line-height:1.5;
+  }
+  .rc-body li::before{
+    content:"";
+    position:absolute;left:0;top:14px;
+    width:8px;height:1px;background:var(--text-placeholder);
+  }
+  .rc-body code{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;
+    background:var(--bg-subtle);
+    padding:1px 6px;
+    border-radius:2px;
+    color:var(--text);
+  }
+  .rc-tag{
+    display:inline-block;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    padding:2px 6px;
+    margin-right:6px;
+    background:var(--bg-subtle);
+    color:var(--text-secondary);
+    border-radius:2px;
+    letter-spacing:.02em;
+  }
+  .rc-tag.crit{background:var(--bg-error);color:var(--error);}
+  .rc-tag.high{background:var(--bg-warning);color:var(--warning-strong);}
+  .rc-tag.med{background:var(--bg-info);color:var(--accent);}
+
+  /* Recommended actions */
+  .actions-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
+    gap:1px;
+    background:var(--line);
+    border:1px solid var(--line);
+    margin-bottom:32px;
+    max-width:920px;
+  }
+  .action-card{
+    background:#fff;
+    padding:24px 24px 28px;
+    display:flex;flex-direction:column;
+    gap:12px;
+    min-height:200px;
+  }
+  .action-card .horizon{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--text-helper);
+    letter-spacing:.04em;
+  }
+  .action-card h4{
+    font-size:16px;font-weight:600;margin:0;
+  }
+  .action-card p{
+    font-size:13px;color:var(--text-secondary);
+    margin:0;line-height:1.5;
+    flex:1;
+  }
+  .action-card .num{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    color:var(--accent);
+    font-weight:500;
+  }
+  .action-card:hover{background:var(--bg-subtle);}
+
+  /* Footnote */
+  .footnote{
+    border-left:3px solid var(--line-strong);
+    padding:8px 0 8px 16px;
+    color:var(--text-secondary);
+    font-size:14px;
+    max-width:760px;
+    margin:48px 0 0;
+    font-style:italic;
+  }
+
+  /* ---------- Right rail ---------- */
+  .right-rail{
+    position:sticky;top:0;
+    padding:48px 32px 64px 8px;
+    align-self:start;
+    max-height:100vh;overflow-y:auto;
+  }
+  .feature-card{
+    background:var(--bg-purple);
+    padding:24px 24px 28px;
+    margin-bottom:24px;
+  }
+  .feature-card .kicker{
+    font-size:13px;
+    color:var(--text-secondary);
+    margin-bottom:8px;
+  }
+  .feature-card h3{
+    font-family:'IBM Plex Sans';
+    font-weight:600;
+    font-size:18px;
+    line-height:1.3;
+    margin:0 0 24px;
+  }
+  .feature-card p{
+    font-size:14px;
+    color:var(--text-secondary);
+    line-height:1.5;
+    margin:0 0 32px;
+  }
+  .feature-card .link-row{
+    display:flex;align-items:center;justify-content:space-between;
+    color:var(--accent);
+    font-size:14px;
+    font-weight:400;
+    cursor:pointer;
+  }
+  .feature-card .link-row:hover{text-decoration:underline;}
+
+  .health{
+    border:1px solid var(--line);
+    padding:20px;
+    margin-bottom:24px;
+  }
+  .health h4{
+    font-size:13px;font-weight:600;margin:0 0 16px;
+    color:var(--text);
+    text-transform:uppercase;
+    letter-spacing:.02em;
+  }
+  .health .row{
+    display:flex;justify-content:space-between;align-items:baseline;
+    padding:10px 0;
+    border-top:1px solid var(--line);
+    font-size:13px;
+  }
+  .health .row:first-of-type{border-top:0;padding-top:0;}
+  .health .row .label{color:var(--text-secondary);}
+  .health .row .val{font-family:'IBM Plex Mono',monospace;font-weight:500;}
+  .health .val.bad{color:var(--error);}
+  .health .val.warn{color:var(--warning-strong);}
+  .health .val.ok{color:var(--success);}
+  .health .meter{
+    height:4px;background:var(--bg-subtle);margin:6px 0 0;
+    position:relative;overflow:hidden;
+  }
+  .health .meter > i{
+    display:block;height:100%;
+  }
+  .health .meter.bad > i{background:var(--error);}
+  .health .meter.warn > i{background:var(--warning);}
+  .health .meter.ok > i{background:var(--success);}
+
+  .related h4{
+    font-size:13px;font-weight:600;margin:0 0 16px;
+    text-transform:uppercase;
+    letter-spacing:.02em;
+    color:var(--text);
+  }
+  .related a{
+    display:block;
+    padding:14px 0;
+    border-top:1px solid var(--line);
+    color:var(--text);
+    font-size:14px;
+    line-height:1.4;
+  }
+  .related a:last-child{border-bottom:1px solid var(--line);}
+  .related a:hover{color:var(--accent);text-decoration:none;}
+  .related .arr{float:right;color:var(--accent);}
+
+  /* ---------- Footer ---------- */
+  footer.page-footer{
+    border-top:1px solid var(--line);
+    background:#161616;
+    color:#c6c6c6;
+    padding:48px 32px;
+    font-size:13px;
+  }
+  footer.page-footer .cols{
+    max-width:1584px;margin:0 auto;
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:32px;
+  }
+  footer.page-footer h5{
+    color:#fff;font-size:13px;font-weight:600;margin:0 0 16px;
+  }
+  footer.page-footer a{
+    color:#c6c6c6;display:block;padding:4px 0;
+  }
+  footer.page-footer a:hover{color:#fff;text-decoration:none;}
+  footer.page-footer .legal{
+    max-width:1584px;margin:48px auto 0;
+    padding-top:24px;border-top:1px solid #393939;
+    color:#8d8d8d;font-size:12px;
+    display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;
+  }
+
+  /* Focus */
+  :focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+
+  /* AI floating */
+  .ai-float{
+    position:fixed;
+    right:24px;bottom:24px;
+    width:48px;height:48px;
+    background:#8a3ffc;
+    color:#fff;
+    border-radius:50%;
+    display:grid;place-items:center;
+    cursor:pointer;
+    box-shadow:0 4px 12px rgba(138,63,252,.4);
+    z-index:20;
+    border:none;
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:600;font-size:13px;
+  }
+  .ai-float:hover{background:#6929c4;}
+</style>
+</head>
+<body>
+
+<!-- Utility bar -->
+<div class="utility-bar">
+  <span>Asset Management Knowledge</span>
+  <a href="#">Sign in</a>
+  <a href="#">Contact</a>
+</div>
+
+<!-- Top nav -->
+<header class="top-bar">
+  <div class="brand">
+    <div class="mark">AR</div>
+    <span class="sep">/</span>
+    <span class="product">Asset Reliability Guide</span>
+  </div>
+  <nav class="top-nav">
+    <a href="#" class="active">Guides</a>
+    <a href="#">Playbooks <svg class="caret" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11L3 6l1-1 4 4 4-4 1 1z"/></svg></a>
+    <a href="#">Maximo</a>
+    <a href="#">CMMS</a>
+    <a href="#">Reliability</a>
+    <a href="#">Reports <svg class="caret" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11L3 6l1-1 4 4 4-4 1 1z"/></svg></a>
+    <a href="#">Training</a>
+    <a href="#">Community <svg class="caret" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11L3 6l1-1 4 4 4-4 1 1z"/></svg></a>
+  </nav>
+  <div class="top-actions">
+    <button class="icon-btn" aria-label="Search">
+      <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="5"/><path d="M11 11l3 3"/></svg>
+    </button>
+    <button class="cta-btn">
+      Subscribe
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 8h11M9 4l4 4-4 4"/></svg>
+    </button>
+  </div>
+</header>
+
+<!-- Page -->
+<div class="page">
+
+  <!-- LEFT NAV -->
+  <aside class="left-nav" id="leftNav">
+    <ul>
+      <li><a href="#ch-1" class="active">Resource constraints</a></li>
+      <li><a href="#ch-2">Scheduling &amp; planning</a></li>
+      <li><a href="#ch-3">Work order management</a></li>
+      <li><a href="#ch-4">System configuration</a></li>
+      <li><a href="#ch-5">Data quality</a></li>
+      <li><a href="#ch-6">Organizational &amp; process</a></li>
+      <li><a href="#ch-7">Technical &amp; system</a></li>
+      <li><a href="#ch-8">Measurement &amp; reporting</a></li>
+      <li><a href="#actions">Recommended actions</a></li>
+    </ul>
+    <a href="#actions" class="jump">
+      Jump to actions
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 8h11M9 4l4 4-4 4"/></svg>
+    </a>
+  </aside>
+
+  <!-- MAIN -->
+  <main>
+    <div class="breadcrumbs">
+      <a href="#">Guides</a>
+      <span class="sep">/</span>
+      <a href="#">Maximo</a>
+      <span class="sep">/</span>
+      <a href="#">Preventive maintenance</a>
+      <span class="sep">/</span>
+      <span>Diagnosing overdue metrics</span>
+    </div>
+
+    <div class="eyebrow">Maximo · Diagnostic guide</div>
+    <h1 class="page-title">Why PM overdue metrics drift above target — and how to fix them</h1>
+    <p class="lede">When the preventive maintenance backlog starts climbing past its threshold in Maximo, the cause is rarely a single issue. This guide walks through the eight categories of root cause to investigate, in roughly the order a planner or reliability engineer should rule them out.</p>
+
+    <div class="meta-row">
+      <span>Updated&nbsp;<strong style="color:var(--text)">May 26, 2026</strong></span>
+      <span>·</span>
+      <span>14 min read</span>
+      <span>·</span>
+      <span class="pill"><span class="dot"></span>Reviewed by reliability engineers</span>
+    </div>
+
+    <div id="overview" class="severity">
+      <div class="icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 7v6M12 16.5v.5"/></svg>
+      </div>
+      <div>
+        <h3>The root cause is usually a combination</h3>
+        <p>Treat the categories below as a checklist. Two or three overlapping factors — say, a stuck PMWOGEN cron task <em>plus</em> a labor shortage — produce the same backlog signature, so resist diagnosing on the first hit.</p>
+      </div>
+    </div>
+
+    <!-- ============ CHAPTER 1 ============ -->
+    <section class="chapter" id="ch-1" data-screen-label="01 Resource Constraints">
+      <h2 class="chapter-title">Resource constraints</h2>
+      <p class="chapter-summary">Backlog grows when the work outpaces the people, parts, or budget available to execute it. Confirm capacity before tuning anything else — schedule changes can't compensate for a missing technician.</p>
+
+      <div class="rc-card open">
+        <button class="rc-header">
+          <div class="rc-glyph">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.25">
+              <rect x="6" y="14" width="28" height="20"/><rect x="11" y="20" width="4" height="8"/><rect x="18" y="20" width="4" height="8"/><rect x="25" y="20" width="4" height="8"/><path d="M6 14l6-8h16l6 8"/>
+            </svg>
+          </div>
+          <div class="rc-text">
+            <p class="rc-title">Labor shortages</p>
+            <p class="rc-blurb">Insufficient or mis-skilled technicians relative to the PM workload</p>
+          </div>
+          <span class="rc-toggle"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11L3 6l1-1 4 4 4-4 1 1z"/></svg></span>
+        </button>
+        <div class="rc-body">
+          <h4>What to look for</h4>
+          <ul>
+            <li><span class="rc-tag high">HIGH</span>Insufficient maintenance technicians to handle current PM workload</li>
+            <li><span class="rc-tag med">MED</span>Skilled labor unavailable for specialized PM tasks (instrumentation, hydraulics, controls)</li>
+            <li><span class="rc-tag high">HIGH</span>Competing priorities between reactive repairs and preventive work</li>
+            <li><span class="rc-tag med">MED</span>Vacation and sick leave reducing available workforce, especially in tight seasons</li>
+          </ul>
+          <h4>How to confirm in Maximo</h4>
+          <ul>
+            <li>Compare <code>LABOR.AVAILHRS</code> against forecasted PM hours per crew per week</li>
+            <li>Run the <em>Labor utilization</em> KPI and look for sustained &gt;90% utilization across two pay periods</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="rc-card">
+        <button class="rc-header">
+          <div class="rc-glyph">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.25">
+              <path d="M8 12h24v16H8z"/><path d="M8 18h24M14 12V8h12v4"/><path d="M14 24h4M22 24h4"/>
+            </svg>
+          </div>
+          <div class="rc-text">
+            <p class="rc-title">Material &amp; parts shortages</p>
+            <p class="rc-blurb">Spares, consumables or budget gating execution at the bench</p>
+          </div>
+          <span class="rc-toggle"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11L3 6l1-1 4 4 4-4 1 1z"/></svg></span>
+        </button>
+        <div class="rc-body">
+          <h4>What to look for</h4>
+          <ul>
+            <li><span class="rc-tag high">HIGH</span>Required spare parts not in inventory at the time of WO release</li>
+            <li><span class="rc-tag med">MED</span>Long lead times for critical components against PM frequency</li>
+            <li><span class="rc-tag med">MED</span>Budget constraints limiting parts procurement mid-cycle</li>
+            <li><span class="rc-tag med">MED</span>Supply chain disruptions affecting OEM-only parts</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CHAPTER 2 ============ -->
+    <section class="chapter" id="ch-2" data-screen-label="02 Scheduling and Planning">
+      <h2 class="chapter-title">Scheduling &amp; planning issues</h2>
+      <p class="chapter-summary">If the calendar isn't honest about capacity, the system will keep issuing work that can't be done. These are the configuration knobs that quietly produce a permanently growing backlog.</p>
+
+      <div class="rc-card">
+        <button class="rc-header">
+          <div class="rc-glyph">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.25">
+              <rect x="6" y="9" width="28" height="25"/><path d="M6 16h28M13 5v8M27 5v8"/><circle cx="20" cy="24" r="3"/>
+            </svg>
+          </div>
+          <div class="rc-text">
+            <p class="rc-title">Poor PM frequency configuration</p>
+            <p class="rc-blurb">Cadence not aligned with usage, criticality, or available labor</p>
+          </div>
+          <span class="rc-toggle"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11L3 6l1-1 4 4 4-4 1 1z"/></svg></span>
+        </button>
+        <div class="rc-body">
+          <ul>
+            <li><span class="rc-tag high">HIGH</span>PM schedules too aggressive for available resources</li>
+            <li><span class="rc-tag high">HIGH</span>Meter-based PMs not aligned with actual asset usage</li>
+            <li><span class="rc-tag med">MED</span>Time-based frequencies not optimized for asset criticality</li>
+            <li><span class="rc-tag med">MED</span>Overlapping PM schedules creating bottlenecks on shared crews</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="rc-card">
+        <button class="rc-header">
+          <div class="rc-glyph">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.25">
+              <circle cx="20" cy="20" r="12"/><path d="M20 12v8l5 3"/><path d="M30 8l4 4M6 12l4-4"/>
+            </svg>
+          </div>
+          <div class="rc-text">
+            <p class="rc-title">PMWOGEN cron task problems</p>
+            <p class="rc-blurb">The job that generates PM work orders isn't running, or isn't generating what you think</p>
+          </div>
+          <span class="rc-toggle"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11L3 6l1-1 4 4 4-4 1 1z"/></svg></span>
+        </button>
+        <div class="rc-body">
+          <ul>
+            <li><span class="rc-tag crit">CRIT</span>Cron task not running properly — check <code>CRONTASKINSTANCE</code> status</li>
+            <li><span class="rc-tag high">HIGH</span>Incorrect cron task configuration (LeadTime, MaxWOs, GenForRoute parameters)</li>
+            <li><span class="rc-tag crit">CRIT</span>PM work orders not generating on schedule</li>
+            <li><span class="rc-tag high">HIGH</span>Forecast dates not calculating correctly after meter resets</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="rc-card">
+        <button class="rc-header">
+          <div class="rc-glyph">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.25">
+              <rect x="6" y="9" width="28" height="25"/><path d="M6 16h28"/><path d="M11 21h2M16 21h2M21 21h2M26 21h2M11 26h2M16 26h2M21 26h2M26 26h2M11 31h2M16 31h2M21 31h2M26 31h2"/>
+            </svg>
+          </div>
+          <div class="rc-text">
+            <p class="rc-title">Calendar &amp; active-day misconfiguration</p>
+            <p class="rc-blurb">The working calendar doesn't reflect when work actually happens</p>
+          </div>
+          <span class="rc-toggle"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11L3 6l1-1 4 4 4-4 1 1z"/></svg></span>
+        </button>
+        <div class="rc-body">
+          <ul>
+            <li><span class="rc-tag med">MED</span>Active days set incorrectly — e.g. Mon–Fri only when weekend coverage exists</li>
+            <li><span class="rc-tag med">MED</span>Holiday calendars not properly maintained for the current year</li>
+            <li><span class="rc-tag med">MED</span>Seasonal restrictions causing PM backlog to spike in shoulder months</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CHAPTER 3 ============ -->
+    <section class="chapter" id="ch-3" data-screen-label="03 Work Order Management">
+      <h2 class="chapter-title">Work order management issues</h2>
+      <p class="chapter-summary">PMs that generate fine but never get assigned, approved, or completed on time will show up as overdue regardless of how clean the upstream schedule is.</p>
+
+      <div class="rc-card">
+        <button class="rc-header">
+          <div class="rc-glyph">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.25">
+              <path d="M10 8h20v24H10z"/><path d="M14 14h12M14 20h12M14 26h8"/><circle cx="29" cy="28" r="5" fill="#fff"/><path d="M27 28l1.5 1.5L31 27"/>
+            </svg>
+          </div>
+          <div class="rc-text">
+            <p class="rc-title">Approval bottlenecks</p>
+            <p class="rc-blurb">Work orders generate, then stall in workflow</p>
+          </div>
+          <span class="rc-toggle"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11L3 6l1-1 4 4 4-4 1 1z"/></svg></span>
+        </button>
+        <div class="rc-body">
+          <ul>
+            <li><span class="rc-tag high">HIGH</span>Work orders stuck in approval workflows past 48h</li>
+            <li><span class="rc-tag high">HIGH</span>Supervisors not reviewing or approving PMs on time</li>
+            <li><span class="rc-tag med">MED</span>Missing approval permissions in restricted SaaS configurations</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="rc-card">
+        <button class="rc-header">
+          <div class="rc-glyph">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.25">
+              <circle cx="14" cy="14" r="5"/><path d="M6 32c0-5 4-8 8-8s8 3 8 8"/><circle cx="28" cy="20" r="4"/><path d="M22 32c0-3 3-6 6-6s6 3 6 6"/>
+            </svg>
+          </div>
+          <div class="rc-text">
+            <p class="rc-title">Assignment problems</p>
+            <p class="rc-blurb">Generated work orders without clear owners</p>
+          </div>
+          <span class="rc-toggle"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11L3 6l1-1 4 4 4-4 1 1z"/></svg></span>
+        </button>
+        <div class="rc-body">
+          <ul>
+            <li><span class="rc-tag high">HIGH</span>Work orders generated but not assigned to technicians</li>
+            <li><span class="rc-tag med">MED</span>Unclear ownership of recurring PM tasks across crews</li>
+            <li><span class="rc-tag crit">CRIT</span>Assignment application not available — a critical gap in restricted-tier SaaS</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="rc-card">
+        <button class="rc-header">
+          <div class="rc-glyph">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.25">
+              <circle cx="20" cy="20" r="14"/><path d="M20 12v8l6 3"/>
+            </svg>
+          </div>
+          <div class="rc-text">
+            <p class="rc-title">Execution delays</p>
+            <p class="rc-blurb">PMs started, but not completed inside their window</p>
+          </div>
+          <span class="rc-toggle"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11L3 6l1-1 4 4 4-4 1 1z"/></svg></span>
+        </button>
+        <div class="rc-body">
+          <ul>
+            <li><span class="rc-tag med">MED</span>PMs started but not completed on time</li>
+            <li><span class="rc-tag med">MED</span>Job plans too complex or time-consuming for the allotted window</li>
+            <li><span class="rc-tag high">HIGH</span>Technicians prioritizing emergency work over scheduled PMs</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CHAPTER 4 ============ -->
+    <section class="chapter" id="ch-4" data-screen-label="04 System Configuration">
+      <h2 class="chapter-title">System configuration issues</h2>
+      <p class="chapter-summary">Configuration that drifts away from the original PM design will quietly skip cycles or generate the wrong work at the wrong time.</p>
+
+      <div class="rc-card">
+        <button class="rc-header">
+          <div class="rc-glyph">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.25">
+              <path d="M8 20h24M22 14l6 6-6 6"/>
+            </svg>
+          </div>
+          <div class="rc-text">
+            <p class="rc-title">Extension date misuse</p>
+            <p class="rc-blurb">Extensions used to defer instead of reschedule</p>
+          </div>
+          <span class="rc-toggle"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11L3 6l1-1 4 4 4-4 1 1z"/></svg></span>
+        </button>
+        <div class="rc-body">
+          <ul>
+            <li><span class="rc-tag high">HIGH</span>Extended dates set too far out, skipping PM cycles</li>
+            <li><span class="rc-tag med">MED</span>No proper tracking of deferred maintenance against asset criticality</li>
+            <li><span class="rc-tag med">MED</span>Extension dates causing sequence disruptions on multi-step routes</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="rc-card">
+        <button class="rc-header">
+          <div class="rc-glyph">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.25">
+              <rect x="8" y="12" width="24" height="16"/><path d="M14 12V8h12v4"/><path d="M13 20h2M18 20h2M23 20h2M28 20h-1"/>
+            </svg>
+          </div>
+          <div class="rc-text">
+            <p class="rc-title">PM counter problems</p>
+            <p class="rc-blurb">Counters and meters out of sync with reality</p>
+          </div>
+          <span class="rc-toggle"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11L3 6l1-1 4 4 4-4 1 1z"/></svg></span>
+        </button>
+        <div class="rc-body">
+          <ul>
+            <li><span class="rc-tag high">HIGH</span>PM counters not incremented when skipping sequences</li>
+            <li><span class="rc-tag med">MED</span>Meter readings not updated regularly on automated routes</li>
+            <li><span class="rc-tag med">MED</span>Duplicate PM records generated for the same asset</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="rc-card">
+        <button class="rc-header">
+          <div class="rc-glyph">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.25">
+              <rect x="6" y="14" width="28" height="14"/><path d="M10 19h20M10 23h20"/><circle cx="14" cy="11" r="1.5"/><circle cx="26" cy="11" r="1.5"/>
+            </svg>
+          </div>
+          <div class="rc-text">
+            <p class="rc-title">Lead time issues</p>
+            <p class="rc-blurb">Generation lead time mis-set at PM, site, or org level</p>
+          </div>
+          <span class="rc-toggle"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11L3 6l1-1 4 4 4-4 1 1z"/></svg></span>
+        </button>
+        <div class="rc-body">
+          <ul>
+            <li><span class="rc-tag med">MED</span><em>Lead Time (Days)</em> field on PM overriding organizational defaults</li>
+            <li><span class="rc-tag high">HIGH</span>Insufficient lead time for planning and parts procurement</li>
+            <li><span class="rc-tag high">HIGH</span>Work orders generated too late for timely execution</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CHAPTER 5 ============ -->
+    <section class="chapter" id="ch-5" data-screen-label="05 Data Quality">
+      <h2 class="chapter-title">Data quality problems</h2>
+      <p class="chapter-summary">PM compliance is a data problem before it is a process problem. Verify the foundation before tuning frequencies.</p>
+
+      <div class="rc-card">
+        <button class="rc-header">
+          <div class="rc-glyph">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.25">
+              <ellipse cx="20" cy="11" rx="12" ry="4"/><path d="M8 11v18c0 2.2 5.4 4 12 4s12-1.8 12-4V11"/><path d="M8 20c0 2.2 5.4 4 12 4s12-1.8 12-4"/>
+            </svg>
+          </div>
+          <div class="rc-text">
+            <p class="rc-title">Inaccurate asset / location data</p>
+            <p class="rc-blurb">Hierarchies and meters drift over time</p>
+          </div>
+          <span class="rc-toggle"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11L3 6l1-1 4 4 4-4 1 1z"/></svg></span>
+        </button>
+        <div class="rc-body">
+          <ul>
+            <li><span class="rc-tag med">MED</span>Assets assigned to non-existent or retired locations</li>
+            <li><span class="rc-tag med">MED</span>Asset hierarchies not properly maintained after reorganizations</li>
+            <li><span class="rc-tag high">HIGH</span>Meter readings not recorded consistently on metered PMs</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="rc-card">
+        <button class="rc-header">
+          <div class="rc-glyph">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.25">
+              <path d="M10 6h16l6 6v22H10z"/><path d="M26 6v6h6"/><path d="M14 18h12M14 22h12M14 26h8"/>
+            </svg>
+          </div>
+          <div class="rc-text">
+            <p class="rc-title">Missing or incomplete job plans</p>
+            <p class="rc-blurb">Work without instructions takes longer and gets skipped</p>
+          </div>
+          <span class="rc-toggle"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11L3 6l1-1 4 4 4-4 1 1z"/></svg></span>
+        </button>
+        <div class="rc-body">
+          <ul>
+            <li><span class="rc-tag high">HIGH</span>PMs without detailed job plans attached</li>
+            <li><span class="rc-tag med">MED</span>Unclear or one-line task descriptions</li>
+            <li><span class="rc-tag med">MED</span>Missing material lists or tool requirements</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CHAPTER 6 ============ -->
+    <section class="chapter" id="ch-6" data-screen-label="06 Organizational and Process">
+      <h2 class="chapter-title">Organizational &amp; process issues</h2>
+      <p class="chapter-summary">No tool fixes a culture that rewards firefighting. These factors are slower-moving but tend to be the durable causes when the others have been ruled out.</p>
+
+      <div class="rc-card">
+        <button class="rc-header">
+          <div class="rc-glyph">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.25">
+              <path d="M20 6c4 6 8 10 8 16 0 5-4 8-8 8s-8-3-8-8c0-6 4-10 8-16z"/><path d="M20 18c2 3 4 4 4 7"/>
+            </svg>
+          </div>
+          <div class="rc-text">
+            <p class="rc-title">Reactive maintenance culture</p>
+            <p class="rc-blurb">Firefighting is consistently rewarded over prevention</p>
+          </div>
+          <span class="rc-toggle"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11L3 6l1-1 4 4 4-4 1 1z"/></svg></span>
+        </button>
+        <div class="rc-body">
+          <ul>
+            <li><span class="rc-tag high">HIGH</span>Organization prioritizes "firefighting" over preventive work</li>
+            <li><span class="rc-tag med">MED</span>Lack of management support for PM compliance targets</li>
+            <li><span class="rc-tag med">MED</span>No consequences — formal or informal — for missing PM targets</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="rc-card">
+        <button class="rc-header">
+          <div class="rc-glyph">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.25">
+              <circle cx="20" cy="20" r="14"/><path d="M14 20l4 4 8-8"/>
+            </svg>
+          </div>
+          <div class="rc-text">
+            <p class="rc-title">Inadequate PM program maturity</p>
+            <p class="rc-blurb">Frequencies not grounded in failure data</p>
+          </div>
+          <span class="rc-toggle"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11L3 6l1-1 4 4 4-4 1 1z"/></svg></span>
+        </button>
+        <div class="rc-body">
+          <ul>
+            <li><span class="rc-tag high">HIGH</span>PM schedules not based on reliability-centered maintenance (RCM)</li>
+            <li><span class="rc-tag med">MED</span>No failure mode analysis (FMEA) to optimize PM tasks</li>
+            <li><span class="rc-tag med">MED</span>PM frequencies not validated against actual failure data</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="rc-card">
+        <button class="rc-header">
+          <div class="rc-glyph">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.25">
+              <path d="M8 14h18l6 6-6 6H8z"/><path d="M14 20h12"/>
+            </svg>
+          </div>
+          <div class="rc-text">
+            <p class="rc-title">Poor communication</p>
+            <p class="rc-blurb">PM priorities invisible to the people executing them</p>
+          </div>
+          <span class="rc-toggle"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11L3 6l1-1 4 4 4-4 1 1z"/></svg></span>
+        </button>
+        <div class="rc-body">
+          <ul>
+            <li><span class="rc-tag med">MED</span>Technicians unaware of which PMs are critical this week</li>
+            <li><span class="rc-tag med">MED</span>No shared visibility into PM backlog across crews</li>
+            <li><span class="rc-tag med">MED</span>Lack of coordination between planners and executors at shift change</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CHAPTER 7 ============ -->
+    <section class="chapter" id="ch-7" data-screen-label="07 Technical and System">
+      <h2 class="chapter-title">Technical &amp; system issues</h2>
+      <p class="chapter-summary">Constraints from the tier of Maximo you're on, or from integrations around it, can throttle PM execution in ways that don't show up in the PM module itself.</p>
+
+      <div class="rc-card">
+        <button class="rc-header">
+          <div class="rc-glyph">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.25">
+              <rect x="7" y="10" width="26" height="20" rx="1"/><path d="M7 16h26M11 13h.01M14 13h.01"/><path d="M14 22h12"/>
+            </svg>
+          </div>
+          <div class="rc-text">
+            <p class="rc-title">Application access limitations</p>
+            <p class="rc-blurb">Tier-locked apps that supervisors need but can't reach</p>
+          </div>
+          <span class="rc-toggle"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11L3 6l1-1 4 4 4-4 1 1z"/></svg></span>
+        </button>
+        <div class="rc-body">
+          <ul>
+            <li><span class="rc-tag crit">CRIT</span>Supervisors cannot create or directly manage work orders</li>
+            <li><span class="rc-tag crit">CRIT</span>No Assignment application for distributing work</li>
+            <li><span class="rc-tag high">HIGH</span>No Graphical Scheduling tools for visual planning</li>
+            <li><span class="rc-tag high">HIGH</span>Missing Job Plans application for PM task definition</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="rc-card">
+        <button class="rc-header">
+          <div class="rc-glyph">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.25">
+              <circle cx="12" cy="20" r="5"/><circle cx="28" cy="12" r="5"/><circle cx="28" cy="28" r="5"/><path d="M16 18l8-4M16 22l8 4"/>
+            </svg>
+          </div>
+          <div class="rc-text">
+            <p class="rc-title">Integration problems</p>
+            <p class="rc-blurb">Mobile, ERP and middleware delays</p>
+          </div>
+          <span class="rc-toggle"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11L3 6l1-1 4 4 4-4 1 1z"/></svg></span>
+        </button>
+        <div class="rc-body">
+          <ul>
+            <li><span class="rc-tag high">HIGH</span>Work order data not syncing properly between Maximo and downstream systems</li>
+            <li><span class="rc-tag high">HIGH</span>Mobile app issues preventing field execution</li>
+            <li><span class="rc-tag med">MED</span>ERP integration delays affecting parts availability</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CHAPTER 8 ============ -->
+    <section class="chapter" id="ch-8" data-screen-label="08 Measurement and Reporting">
+      <h2 class="chapter-title">Measurement &amp; reporting issues</h2>
+      <p class="chapter-summary">Sometimes the backlog isn't really a backlog — the KPI itself is mis-defined or the people who need to see it can't act on it.</p>
+
+      <div class="rc-card">
+        <button class="rc-header">
+          <div class="rc-glyph">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.25">
+              <path d="M6 32h28M10 28v-8M16 28v-14M22 28v-6M28 28v-18"/>
+            </svg>
+          </div>
+          <div class="rc-text">
+            <p class="rc-title">Incorrect KPI definitions</p>
+            <p class="rc-blurb">Targets that don't match operational reality</p>
+          </div>
+          <span class="rc-toggle"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11L3 6l1-1 4 4 4-4 1 1z"/></svg></span>
+        </button>
+        <div class="rc-body">
+          <ul>
+            <li><span class="rc-tag high">HIGH</span>PM overdue threshold set too aggressively</li>
+            <li><span class="rc-tag med">MED</span>Target metrics not aligned with organizational capacity</li>
+            <li><span class="rc-tag med">MED</span>Compliance measured incorrectly (e.g. counting closed-but-late as on-time)</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="rc-card">
+        <button class="rc-header">
+          <div class="rc-glyph">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.25">
+              <circle cx="20" cy="20" r="4"/><path d="M4 20c3-7 9-12 16-12s13 5 16 12c-3 7-9 12-16 12s-13-5-16-12z"/>
+            </svg>
+          </div>
+          <div class="rc-text">
+            <p class="rc-title">Visibility gaps</p>
+            <p class="rc-blurb">The right people can't see — or can't act on — what's overdue</p>
+          </div>
+          <span class="rc-toggle"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11L3 6l1-1 4 4 4-4 1 1z"/></svg></span>
+        </button>
+        <div class="rc-body">
+          <ul>
+            <li><span class="rc-tag high">HIGH</span>Supervisors can only view but not act on overdue PMs</li>
+            <li><span class="rc-tag med">MED</span>No real-time alerts for approaching due dates</li>
+            <li><span class="rc-tag med">MED</span>Inadequate dashboard configuration</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ RECOMMENDED ACTIONS ============ -->
+    <section class="chapter" id="actions" data-screen-label="09 Recommended Actions">
+      <h2 class="chapter-title">What to do, in order</h2>
+      <p class="chapter-summary">Sequence matters. Stabilize before you optimize, then optimize before you transform.</p>
+
+      <div class="actions-grid">
+        <div class="action-card">
+          <span class="horizon">IMMEDIATE — TODAY</span>
+          <h4>Review PM backlog &amp; triage</h4>
+          <p>Sort overdue PMs by asset criticality, surface the top 5–10 risks, and confirm whether they're truly overdue or just past their threshold.</p>
+          <span class="num">→ 01</span>
+        </div>
+        <div class="action-card">
+          <span class="horizon">SHORT-TERM — THIS WEEK</span>
+          <h4>Verify PMWOGEN is running</h4>
+          <p>Confirm the cron task instance is active, look at last run time, and check the row count of generated work orders against expectations.</p>
+          <span class="num">→ 02</span>
+        </div>
+        <div class="action-card">
+          <span class="horizon">MEDIUM-TERM — THIS QUARTER</span>
+          <h4>Optimize frequencies via RCM/FMEA</h4>
+          <p>Use real failure data to confirm PM intervals are still appropriate; remove or reduce PMs that aren't reducing failure rates.</p>
+          <span class="num">→ 03</span>
+        </div>
+        <div class="action-card">
+          <span class="horizon">LONG-TERM — NEXT YEAR</span>
+          <h4>Move toward predictive maintenance</h4>
+          <p>Reduce the PM burden by replacing fixed-interval inspections with sensor- or condition-based triggers where the economics support it.</p>
+          <span class="num">→ 04</span>
+        </div>
+        <div class="action-card">
+          <span class="horizon">PROCESS</span>
+          <h4>Establish escalation paths</h4>
+          <p>Define who is notified, and when, as a PM approaches and passes its due date. Make sure each escalation step has a named owner.</p>
+          <span class="num">→ 05</span>
+        </div>
+        <div class="action-card">
+          <span class="horizon">TRAINING</span>
+          <h4>Equip supervisors</h4>
+          <p>Confirm supervisors understand the full PM management workflow — generation, assignment, approval, completion, and counter behavior.</p>
+          <span class="num">→ 06</span>
+        </div>
+        <div class="action-card">
+          <span class="horizon">TECHNOLOGY</span>
+          <h4>Re-evaluate your tier</h4>
+          <p>If your tier of Maximo lacks Assignment, Job Plans, or Graphical Scheduling, the backlog may be structural — consider upgrading.</p>
+          <span class="num">→ 07</span>
+        </div>
+        <div class="action-card" style="background:#161616;color:#fff;">
+          <span class="horizon" style="color:#a8a8a8;">REMEMBER</span>
+          <h4 style="color:#fff;">It's almost never one thing</h4>
+          <p style="color:#c6c6c6;">The root cause is usually a combination of these factors. Address the top 2–3 in parallel rather than waiting to "finish" one.</p>
+        </div>
+      </div>
+
+      <p class="footnote">This guide is intended for planners, reliability engineers and supervisors operating a CMMS-based PM program. It does not replace vendor support documentation; for product-specific defects, follow your support contract.</p>
+    </section>
+  </main>
+
+  <!-- RIGHT RAIL -->
+  <aside class="right-rail">
+    <div class="feature-card">
+      <div class="kicker">Reliability playbook</div>
+      <h3>Cut PM backlog by 40% in one quarter</h3>
+      <p>A step-by-step playbook for stabilizing PM compliance — built from teams that turned around overdue metrics in 90 days.</p>
+      <div class="link-row">
+        <span>Get the playbook</span>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 8h11M9 4l4 4-4 4"/></svg>
+      </div>
+    </div>
+
+  </aside>
+</div>
+
+<footer class="page-footer">
+  <div class="cols">
+    <div>
+      <h5>Asset Reliability Guide</h5>
+      <a href="#">About</a>
+      <a href="#">Editorial standards</a>
+      <a href="#">Contributors</a>
+    </div>
+    <div>
+      <h5>Topics</h5>
+      <a href="#">Preventive maintenance</a>
+      <a href="#">Predictive maintenance</a>
+      <a href="#">Reliability engineering</a>
+      <a href="#">CMMS &amp; EAM</a>
+    </div>
+    <div>
+      <h5>Resources</h5>
+      <a href="#">Playbooks</a>
+      <a href="#">Templates</a>
+      <a href="#">Glossary</a>
+    </div>
+    <div>
+      <h5>Stay informed</h5>
+      <a href="#">Newsletter</a>
+      <a href="#">RSS</a>
+      <a href="#">Community</a>
+    </div>
+  </div>
+  <div class="legal">
+    <span>© 2026 Asset Reliability Guide. An independent publication.</span>
+    <span>Terms · Privacy · Cookie preferences</span>
+  </div>
+</footer>
+
+<button class="ai-float" title="Ask the assistant">AI</button>
+
+<script>
+(function(){
+  // ---------- Expand / collapse root-cause cards ----------
+  document.querySelectorAll('.rc-card').forEach(card => {
+    const header = card.querySelector('.rc-header');
+    header.addEventListener('click', () => {
+      card.classList.toggle('open');
+    });
+  });
+
+  // ---------- Scroll spy for left nav ----------
+  const navLinks = Array.from(document.querySelectorAll('#leftNav a[href^="#"]'));
+  const idToLink = {};
+  navLinks.forEach(l => {
+    const id = l.getAttribute('href').slice(1);
+    idToLink[id] = l;
+  });
+  const sections = ['ch-1','ch-2','ch-3','ch-4','ch-5','ch-6','ch-7','ch-8','actions']
+    .map(id => document.getElementById(id))
+    .filter(Boolean);
+
+  function setActive(id){
+    navLinks.forEach(l => l.classList.remove('active'));
+    if(idToLink[id]) idToLink[id].classList.add('active');
+  }
+
+  const io = new IntersectionObserver((entries) => {
+    // pick the entry highest on the page that is intersecting
+    const visible = entries
+      .filter(e => e.isIntersecting)
+      .sort((a,b) => a.boundingClientRect.top - b.boundingClientRect.top);
+    if(visible.length){
+      setActive(visible[0].target.id);
+    }
+  }, { rootMargin: '-20% 0px -60% 0px', threshold: 0 });
+
+  sections.forEach(s => io.observe(s));
+
+  // Anchor navigation — element.scrollIntoView is the only method that
+  // bubbles past the auto-sized iframe to scroll the parent viewport.
+  navLinks.forEach(l => {
+    l.addEventListener('click', (e) => {
+      const id = l.getAttribute('href').slice(1);
+      const target = document.getElementById(id);
+      if(!target) return;
+      e.preventDefault();
+      setActive(id);
+      target.scrollIntoView({block: 'start', behavior: 'smooth'});
+      history.replaceState(null, '', '#' + id);
+    });
+  });
+})();
+</script>
+
+<template id="__bundler_thumbnail" data-bg-color="#ffffff">
+  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+    <rect width="1200" height="800" fill="#ffffff"/>
+    <rect x="0" y="0" width="1200" height="6" fill="#0f62fe"/>
+    <g transform="translate(120,180)" fill="none" stroke="#161616" stroke-width="3" stroke-linecap="square">
+      <path d="M0 0 H760"/>
+      <path d="M0 120 H540"/>
+      <path d="M0 240 H680"/>
+    </g>
+    <g transform="translate(120,460)" fill="none" stroke="#0f62fe" stroke-width="4">
+      <rect x="0" y="0" width="220" height="180"/>
+      <rect x="260" y="0" width="220" height="180"/>
+      <rect x="520" y="0" width="220" height="180"/>
+    </g>
+    <text x="120" y="720" font-family="IBM Plex Sans, sans-serif" font-size="22" fill="#525252" letter-spacing="2">DIAGNOSTIC GUIDE</text>
+  </svg>
+</template>
+
+</body>
+</html>
